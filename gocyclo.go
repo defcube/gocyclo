@@ -44,7 +44,7 @@ Flags:
                   not depending on whether -over or -top are set
 
 The output fields for each line are:
-<complexity> <package> <function> <file:row:column>
+<file:row:column:> <complexity> <package> <function>
 `
 
 func usage() {
@@ -150,7 +150,7 @@ type stat struct {
 }
 
 func (s stat) String() string {
-	return fmt.Sprintf("%d %s %s %s", s.Complexity, s.PkgName, s.FuncName, s.Pos)
+	return fmt.Sprintf("%s: %d %s %s", s.Pos, s.Complexity, s.PkgName, s.FuncName)
 }
 
 type byComplexity []stat

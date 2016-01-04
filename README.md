@@ -27,5 +27,5 @@ Examples:
 
 The output fields for each line are:
 
-    <complexity> <package> <function> <file:row:column>
+    <file:row:column:> <complexity> <package> <function>
 
