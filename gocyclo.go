@@ -28,6 +28,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -37,11 +38,12 @@ Usage:
         gocyclo [flags] <Go file or directory> ...
 
 Flags:
-        -over N   show functions with complexity > N only and
-                  return exit code 1 if the set is non-empty
-        -top N    show the top N most complex functions only
-        -avg      show the average complexity over all functions,
-                  not depending on whether -over or -top are set
+        -over N         show functions with complexity > N only and
+                        return exit code 1 if the set is non-empty
+        -top N          show the top N most complex functions only
+        -avg            show the average complexity over all functions,
+                        not depending on whether -over or -top are set
+        -ignore REGEX   exclude files matching the given regular expression
 
 The output fields for each line are:
 <file:row:column:> <complexity> <package> <function>
@@ -53,9 +55,11 @@ func usage() {
 }
 
 var (
-	over = flag.Int("over", 0, "show functions with complexity > N only")
-	top  = flag.Int("top", -1, "show the top N most complex functions only")
-	avg  = flag.Bool("avg", false, "show the average complexity")
+	over     = flag.Int("over", 0, "show functions with complexity > N only")
+	top      = flag.Int("top", -1, "show the top N most complex functions only")
+	avg      = flag.Bool("avg", false, "show the average complexity")
+	ignore   = flag.String("ignore", "^(Godeps|vendor|testdata|[\\._].*)$", "exclude files matching the given regular expression")
+	ignoreRx *regexp.Regexp
 )
 
 func main() {
@@ -63,6 +67,13 @@ func main() {
 	log.SetPrefix("gocyclo: ")
 	flag.Usage = usage
 	flag.Parse()
+
+	if len(*ignore) == 0 {
+		ignoreRx = nil
+	} else {
+		ignoreRx = regexp.MustCompilePOSIX(*ignore)
+	}
+
 	args := flag.Args()
 	if len(args) == 0 {
 		usage()
@@ -98,6 +109,13 @@ func isDir(filename string) bool {
 	return err == nil && fi.IsDir()
 }
 
+func isIgnored(path string) bool {
+	if ignoreRx != nil {
+		return ignoreRx.MatchString(path)
+	}
+	return false
+}
+
 func analyzeFile(fname string, stats []stat) []stat {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, fname, nil, 0)
@@ -109,7 +127,10 @@ func analyzeFile(fname string, stats []stat) []stat {
 
 func analyzeDir(dirname string, stats []stat) []stat {
 	filepath.Walk(dirname, func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() && strings.HasSuffix(path, ".go") {
+		if info.IsDir() && info.Name() != "." && isIgnored(info.Name()) {
+			return filepath.SkipDir
+		}
+		if err == nil && !info.IsDir() && strings.HasSuffix(path, ".go") && !isIgnored(info.Name()) {
 			stats = analyzeFile(path, stats)
 		}
 		return err
